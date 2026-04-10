@@ -31,15 +31,20 @@ app.use(mongoSanitize()); // Prevent NoSQL injection
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Clean trailing slashes from env vars
+      const cleanEnvUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : null;
+      
       const allowedOrigins = [
         "http://localhost:5173", 
-        process.env.CLIENT_URL
+        cleanEnvUrl,
+        "https://safeloginsystem.vercel.app" // Hardcoded for guaranteed connection
       ].filter(Boolean);
       
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.error(`CORS BLOCKED ORIGIN: ${origin}`);
         callback(new Error("Not allowed by CORS"));
       }
     },
