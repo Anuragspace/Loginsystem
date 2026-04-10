@@ -36,8 +36,21 @@ const sendEmail = async (to, subject, html) => {
   await transporter.sendMail(mailOptions);
 };
 
+// Prevent malformed URLs if user accidentally includes pathnames in the ENV
+const getCleanClientUrl = () => {
+  let urlStr = process.env.CLIENT_URL || "http://localhost:5173";
+  // Attempt to parse standard URL and return just origin, fallback to basic regex strip
+  try {
+    const parsed = new URL(urlStr);
+    return parsed.origin;
+  } catch (err) {
+    return urlStr.replace(/\/login\/?$/, "").replace(/\/register\/?$/, "").replace(/\/$/, "");
+  }
+};
+
 export const sendVerificationEmail = async (to, token) => {
-  const url = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
+  const baseUrl = getCleanClientUrl();
+  const url = `${baseUrl}/verify-email?token=${token}`;
   const html = `
     <div style="font-family: Inter, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px; border-radius: 12px; border: 1px solid #eee;">
       <div style="margin-bottom: 24px;">
@@ -54,7 +67,8 @@ export const sendVerificationEmail = async (to, token) => {
 };
 
 export const sendPasswordResetEmail = async (to, token) => {
-  const url = `${process.env.CLIENT_URL}/reset-password/${token}`;
+  const baseUrl = getCleanClientUrl();
+  const url = `${baseUrl}/reset-password/${token}`;
   const html = `
     <div style="font-family: Inter, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px; border-radius: 12px; border: 1px solid #eee;">
       <div style="margin-bottom: 24px;">
