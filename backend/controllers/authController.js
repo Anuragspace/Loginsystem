@@ -35,19 +35,34 @@ export const register = async (req, res) => {
     const verifyToken = crypto.randomBytes(32).toString("hex");
 
     // Create user
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      verifyToken,
-    });
+    let user = null;
+    try {
+      user = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        verifyToken,
+      });
+    } catch (dbError) {
+      console.error("DB create error:", dbError);
+      return res.status(500).json({ message: "Failed to create account. Please try again.", error: dbError.message });
+    }
 
-    // Send verification email
-    await sendVerificationEmail(email, verifyToken);
+    // Send verification email — if this fails, delete the user so they can re-register
+    try {
+      await sendVerificationEmail(email, verifyToken);
+    } catch (emailError) {
+      console.error("Email send error:", emailError);
+      // Clean up the orphaned user
+      await User.deleteOne({ _id: user._id });
+      return res.status(500).json({ 
+        message: "Account created but we failed to send a verification email. This is likely a server configuration issue. Please try again in a moment.",
+        error: emailError.message 
+      });
+    }
 
     res.status(201).json({
-      message:
-        "Account created! Please check your email to verify your account.",
+      message: "Account created! Please check your email (and spam folder) to verify your account.",
     });
   } catch (error) {
     console.error("Register error:", error);

@@ -1,17 +1,23 @@
 import nodemailer from "nodemailer";
 
-/**
- * Create a fresh transporter each time so it always
- * reads the latest process.env values (fixes dotenv timing issue)
- */
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+// Reuse a single transporter instance for better performance
+let transporter = null;
+
+const getTransporter = () => {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      // Increase timeouts for cloud/Render environments
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+  }
+  return transporter;
 };
 
 /**
@@ -21,10 +27,12 @@ const createTransporter = () => {
  * @param {string} html - HTML body
  */
 const sendEmail = async (to, subject, html) => {
-  const transporter = createTransporter();
+  const t = getTransporter();
 
-  // Verify connection config before sending
-  await transporter.verify();
+  // Log env values to help debug (without exposing the full password)
+  console.log(`[Email] Attempting to send to: ${to}`);
+  console.log(`[Email] Using EMAIL_USER: ${process.env.EMAIL_USER}`);
+  console.log(`[Email] EMAIL_PASS set: ${process.env.EMAIL_PASS ? 'YES' : 'NO'}`);
 
   const mailOptions = {
     from: `"AuthSystem" <${process.env.EMAIL_USER}>`,
@@ -33,7 +41,8 @@ const sendEmail = async (to, subject, html) => {
     html,
   };
 
-  await transporter.sendMail(mailOptions);
+  const info = await t.sendMail(mailOptions);
+  console.log(`[Email] Message sent successfully. ID: ${info.messageId}`);
 };
 
 // Prevent malformed URLs if user accidentally includes pathnames in the ENV
