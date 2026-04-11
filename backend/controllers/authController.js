@@ -51,7 +51,10 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.error("Register error:", error);
-    res.status(500).json({ message: "Server error. Please try again later." });
+    res.status(500).json({ 
+      message: "Server error during registration.", 
+      error: error.message || error.toString() 
+    });
   }
 };
 
@@ -137,7 +140,10 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ message: "Server error. Please try again later." });
+    res.status(500).json({ 
+      message: "Server error during login.", 
+      error: error.message || error.toString() 
+    });
   }
 };
 
