@@ -6,15 +6,18 @@ let transporter = null;
 const getTransporter = () => {
   if (!transporter) {
     transporter = nodemailer.createTransport({
-      service: "gmail",
+      // Use explicit host + port 465 (SSL) instead of service:'gmail'
+      // Port 587 (STARTTLS) is often blocked by cloud providers like Render
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true, // true for port 465 (SSL)
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-      // Increase timeouts for cloud/Render environments
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
     });
   }
   return transporter;
