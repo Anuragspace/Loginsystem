@@ -1,57 +1,46 @@
-import nodemailer from "nodemailer";
+import * as Brevo from "@getbrevo/brevo";
 
-// Reuse a single transporter instance for better performance
-let transporter = null;
+// Initialize Brevo API client
+let apiInstance = null;
 
-const getTransporter = () => {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      // Use explicit host + port 465 (SSL) instead of service:'gmail'
-      // Port 587 (STARTTLS) is often blocked by cloud providers like Render
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true, // true for port 465 (SSL)
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-    });
+const getApiInstance = () => {
+  if (!apiInstance) {
+    apiInstance = new Brevo.TransactionalEmailsApi();
+    // Set API key authentication
+    apiInstance.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
   }
-  return transporter;
+  return apiInstance;
 };
 
 /**
- * Send an email
+ * Send an email via Brevo HTTP API (works on Render — no SMTP needed)
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
  * @param {string} html - HTML body
  */
 const sendEmail = async (to, subject, html) => {
-  const t = getTransporter();
-
-  // Log env values to help debug (without exposing the full password)
   console.log(`[Email] Attempting to send to: ${to}`);
-  console.log(`[Email] Using EMAIL_USER: ${process.env.EMAIL_USER}`);
-  console.log(`[Email] EMAIL_PASS set: ${process.env.EMAIL_PASS ? 'YES' : 'NO'}`);
+  console.log(`[Email] BREVO_API_KEY set: ${process.env.BREVO_API_KEY ? "YES" : "NO"}`);
+  console.log(`[Email] EMAIL_USER (sender): ${process.env.EMAIL_USER}`);
 
-  const mailOptions = {
-    from: `"AuthSystem" <${process.env.EMAIL_USER}>`,
-    to,
-    subject,
-    html,
+  const api = getApiInstance();
+  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = html;
+  sendSmtpEmail.sender = {
+    name: "AuthSystem",
+    email: process.env.EMAIL_USER, // Must be a verified sender in Brevo
   };
+  sendSmtpEmail.to = [{ email: to }];
 
-  const info = await t.sendMail(mailOptions);
-  console.log(`[Email] Message sent successfully. ID: ${info.messageId}`);
+  const response = await api.sendTransacEmail(sendSmtpEmail);
+  console.log(`[Email] Sent successfully. Message ID: ${response.body?.messageId}`);
 };
 
 // Prevent malformed URLs if user accidentally includes pathnames in the ENV
 const getCleanClientUrl = () => {
   let urlStr = process.env.CLIENT_URL || "http://localhost:5173";
-  // Attempt to parse standard URL and return just origin, fallback to basic regex strip
   try {
     const parsed = new URL(urlStr);
     return parsed.origin;
