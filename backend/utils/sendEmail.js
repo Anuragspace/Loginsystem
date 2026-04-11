@@ -1,19 +1,10 @@
-import * as Brevo from "@getbrevo/brevo";
-
-// Initialize Brevo API client
-let apiInstance = null;
-
-const getApiInstance = () => {
-  if (!apiInstance) {
-    apiInstance = new Brevo.TransactionalEmailsApi();
-    // Set API key authentication
-    apiInstance.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
-  }
-  return apiInstance;
-};
+/**
+ * Email utility using Brevo REST API (HTTPS) — works on Render free tier
+ * No nodemailer, no SMTP, no SDK import issues — just native fetch.
+ */
 
 /**
- * Send an email via Brevo HTTP API (works on Render — no SMTP needed)
+ * Send an email via Brevo HTTP API
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
  * @param {string} html - HTML body
@@ -23,28 +14,37 @@ const sendEmail = async (to, subject, html) => {
   console.log(`[Email] BREVO_API_KEY set: ${process.env.BREVO_API_KEY ? "YES" : "NO"}`);
   console.log(`[Email] EMAIL_USER (sender): ${process.env.EMAIL_USER}`);
 
-  const api = getApiInstance();
-  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "api-key": process.env.BREVO_API_KEY,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      sender: { name: "AuthSystem", email: process.env.EMAIL_USER },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
 
-  sendSmtpEmail.subject = subject;
-  sendSmtpEmail.htmlContent = html;
-  sendSmtpEmail.sender = {
-    name: "AuthSystem",
-    email: process.env.EMAIL_USER, // Must be a verified sender in Brevo
-  };
-  sendSmtpEmail.to = [{ email: to }];
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(`Brevo API error ${response.status}: ${JSON.stringify(errBody)}`);
+  }
 
-  const response = await api.sendTransacEmail(sendSmtpEmail);
-  console.log(`[Email] Sent successfully. Message ID: ${response.body?.messageId}`);
+  const data = await response.json();
+  console.log(`[Email] Sent successfully. Message ID: ${data.messageId}`);
 };
 
-// Prevent malformed URLs if user accidentally includes pathnames in the ENV
+// Strip any accidental path from CLIENT_URL
 const getCleanClientUrl = () => {
   let urlStr = process.env.CLIENT_URL || "http://localhost:5173";
   try {
     const parsed = new URL(urlStr);
     return parsed.origin;
-  } catch (err) {
+  } catch {
     return urlStr.replace(/\/login\/?$/, "").replace(/\/register\/?$/, "").replace(/\/$/, "");
   }
 };
